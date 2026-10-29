@@ -33,6 +33,7 @@ pipeline {
         stage('Terraform Validate') {
             steps {
                 dir('terraform') {
+                    sh 'terraform fmt -recursive'
                     sh 'terraform fmt -check -recursive'
                     sh 'terraform validate'
                 }
