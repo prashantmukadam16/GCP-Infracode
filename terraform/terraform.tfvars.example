@@ -1,0 +1,7 @@
+project_id  = "project-88c619e6-27a3-4887-94b"
+region      = "us-central1-a"
+environment = "dev"
+
+# Review cost before choosing production sizing.
+mysql_tier                 = "db-custom-2-7680"
+mysql_deletion_protection  = true
