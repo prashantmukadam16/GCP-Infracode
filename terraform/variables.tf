@@ -24,5 +24,5 @@ variable "mysql_tier" {
 variable "mysql_deletion_protection" {
   description = "Protect Cloud SQL from accidental deletion"
   type        = bool
-  default     = true
+  default     = false
 }
