@@ -30,7 +30,7 @@ pipeline {
                     sh 'terraform init -input=false'
                 }
             }
-      }
+        }
 
         stage('Terraform Validate') {
             steps {
