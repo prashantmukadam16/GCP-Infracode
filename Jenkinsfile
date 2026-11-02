@@ -6,6 +6,10 @@ pipeline {
         GIT_REPO = 'https://github.com/prashantmukadam16/GCP-Infracode.git'
         GIT_BRANCH = 'main'
         GOOGLE_PROJECT = 'project-88c619e6-27a3-4887-94b'
+
+        // Use the SAME workspace as the deployment pipeline
+        TF_DIR = '/var/lib/jenkins/workspace/GCP-Infracode-Pipeline/terraform'
+
         TF_IN_AUTOMATION = 'true'
         TF_INPUT = 'false'
     }
@@ -19,14 +23,16 @@ pipeline {
 
         stage('Git Checkout') {
             steps {
-                git branch: "${GIT_BRANCH}",
-                    url: "${GIT_REPO}"
+                dir('/var/lib/jenkins/workspace/GCP-Infracode-Pipeline') {
+                    git branch: "${GIT_BRANCH}",
+                        url: "${GIT_REPO}"
+                }
             }
         }
 
         stage('Terraform Init') {
             steps {
-                dir('/var/lib/jenkins/workspace/GCP-Infracode-Pipeline/terraform') {
+                dir("${TF_DIR}") {
                     sh 'terraform init -input=false'
                 }
             }
@@ -34,25 +40,54 @@ pipeline {
 
         stage('Terraform Validate') {
             steps {
-                dir('terraform') {
-                    sh 'terraform fmt -recursive'
-                    sh 'terraform fmt -check -recursive'
-                    sh 'terraform validate'
+                dir("${TF_DIR}") {
+                    sh '''
+                        terraform fmt -check -recursive
+                        terraform validate
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Terraform State') {
+            steps {
+                dir("${TF_DIR}") {
+                    sh '''
+                        echo "Checking existing Terraform state..."
+
+                        terraform state list
+
+                        RESOURCE_COUNT=$(terraform state list | wc -l)
+
+                        echo "Resources found in Terraform state: ${RESOURCE_COUNT}"
+
+                        if [ "$RESOURCE_COUNT" -eq 0 ]; then
+                            echo "ERROR: No Terraform resources found."
+                            echo "Stopping destruction to protect infrastructure."
+                            exit 1
+                        fi
+                    '''
                 }
             }
         }
 
         stage('Terraform Destroy Plan') {
             steps {
-                dir('terraform') {
+                dir("${TF_DIR}") {
                     sh '''
                         terraform plan \
                           -destroy \
                           -input=false \
                           -var="project_id=${GOOGLE_PROJECT}" \
-                          -out=tfplan
+                          -out=tf-destroy.tfplan
 
-                        terraform show tfplan
+                        terraform show -no-color tf-destroy.tfplan \
+                          | tee destroy-plan.txt
+
+                        if grep -q "No changes" destroy-plan.txt; then
+                            echo "ERROR: Terraform has no resources to destroy."
+                            exit 1
+                        fi
                     '''
                 }
             }
@@ -62,7 +97,7 @@ pipeline {
             steps {
                 script {
                     input(
-                        message: 'WARNING: This will permanently destroy the GCP infrastructure. Have you reviewed the Terraform destroy plan and confirmed the target project?',
+                        message: 'WARNING: Review the Terraform destroy plan. This will permanently delete the managed GCP infrastructure. Proceed?',
                         ok: 'Approve Infrastructure Destruction',
                         submitter: 'YOUR_JENKINS_APPROVER'
                     )
@@ -72,8 +107,12 @@ pipeline {
 
         stage('Terraform Destroy Apply') {
             steps {
-                dir('terraform') {
-                    sh 'terraform apply -input=false tfplan'
+                dir("${TF_DIR}") {
+                    sh '''
+                        terraform apply \
+                          -input=false \
+                          tf-destroy.tfplan
+                    '''
                 }
             }
         }
@@ -81,7 +120,7 @@ pipeline {
 
     post {
         success {
-            echo 'Terraform infrastructure destruction completed successfully.'
+            echo 'GCP infrastructure destruction completed successfully.'
         }
 
         failure {
@@ -89,7 +128,11 @@ pipeline {
         }
 
         always {
-            sh 'rm -f terraform/tfplan'
+            sh '''
+                rm -f "${TF_DIR}/tf-destroy.tfplan"
+                rm -f "${TF_DIR}/destroy-plan.txt"
+            '''
         }
     }
 }
+
