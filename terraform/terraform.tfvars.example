@@ -4,4 +4,4 @@ environment = "dev"
 
 # Review cost before choosing production sizing.
 mysql_tier                 = "db-custom-2-7680"
-mysql_deletion_protection  = true
+mysql_deletion_protection  = false
