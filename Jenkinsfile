@@ -26,11 +26,11 @@ pipeline {
 
         stage('Terraform Init') {
             steps {
-                dir('terraform') {
+                dir('/var/lib/jenkins/workspace/GCP-Infracode-Pipeline/terraform') {
                     sh 'terraform init -input=false'
                 }
             }
-        }
+      }
 
         stage('Terraform Validate') {
             steps {
