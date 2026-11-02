@@ -40,14 +40,23 @@ pipeline {
 
         stage('Terraform Validate') {
             steps {
-                dir("${TF_DIR}") {
-                    sh '''
-                        terraform fmt -check -recursive
-                        terraform validate
+                 dir("${TF_DIR}") {
+                     sh '''
+                     echo "Formatting Terraform files..."
+
+                     terraform fmt -recursive
+
+                     echo "Checking Terraform formatting..."
+
+                     terraform fmt -check -recursive
+
+                     echo "Validating Terraform configuration..."
+
+                    terraform validate
                     '''
                 }
             }
-        }
+    }
 
         stage('Verify Terraform State') {
             steps {
