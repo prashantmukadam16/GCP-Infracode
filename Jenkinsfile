@@ -1,3 +1,4 @@
+
 pipeline {
     agent any
 
@@ -15,6 +16,7 @@ pipeline {
     }
 
     stages {
+
         stage('Git Checkout') {
             steps {
                 git branch: "${GIT_BRANCH}",
@@ -40,14 +42,17 @@ pipeline {
             }
         }
 
-        stage('Terraform Plan') {
+        stage('Terraform Destroy Plan') {
             steps {
                 dir('terraform') {
                     sh '''
                         terraform plan \
+                          -destroy \
                           -input=false \
                           -var="project_id=${GOOGLE_PROJECT}" \
                           -out=tfplan
+
+                        terraform show tfplan
                     '''
                 }
             }
@@ -56,19 +61,16 @@ pipeline {
         stage('Manual Approval') {
             steps {
                 script {
-                    def approval = input(
-                        message: 'Review the Terraform plan. Approve deployment to GCP?',
-                        ok: 'Approve and Deploy',
-                        submitter: 'YOUR_JENKINS_APPROVER',
-                        submitterParameter: 'APPROVED_BY'
+                    input(
+                        message: 'WARNING: This will permanently destroy the GCP infrastructure. Have you reviewed the Terraform destroy plan and confirmed the target project?',
+                        ok: 'Approve Infrastructure Destruction',
+                        submitter: 'YOUR_JENKINS_APPROVER'
                     )
-
-                    echo "Deployment approved by: ${approval}"
                 }
             }
         }
 
-        stage('Terraform Apply') {
+        stage('Terraform Destroy Apply') {
             steps {
                 dir('terraform') {
                     sh 'terraform apply -input=false tfplan'
@@ -78,6 +80,14 @@ pipeline {
     }
 
     post {
+        success {
+            echo 'Terraform infrastructure destruction completed successfully.'
+        }
+
+        failure {
+            echo 'Terraform destruction failed. Check the Jenkins console output.'
+        }
+
         always {
             sh 'rm -f terraform/tfplan'
         }
